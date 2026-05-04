@@ -478,11 +478,16 @@ export function DrawCanvas() {
               if (e.key === "Escape") setEditing(null);
             }}
             onBlur={() => commitText()}
-            className="absolute z-10 px-2 py-1 rounded-md bg-panel border border-border text-text outline-none"
+            className="absolute z-10 px-2 py-1 rounded-md border outline-none"
             style={{
               left: overlayPos.left,
               top: overlayPos.top,
               minWidth: 180,
+              zIndex: 50,
+              backgroundColor: "rgba(17, 17, 17, 0.96)",
+              color: "#ffffff",
+              borderColor: "rgba(255,255,255,0.22)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
               fontFamily: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               fontSize: Math.max(12, Math.min(64, Math.round(drawSettings.size * 2))),
             }}

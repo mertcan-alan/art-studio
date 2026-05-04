@@ -1,23 +1,17 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from "react";
-import { Brush, Eraser, Minus, Square, Circle, Pipette, Type, Undo2, Redo2, Trash2 } from "lucide-react";
+import { useRef, useEffect, useCallback, useState } from "react";
+import { Brush, Eraser, Minus, Square, Circle, PaintBucket, Undo2, Redo2, Trash2 } from "lucide-react";
 import { useStudioStore } from "../../store/studioStore";
 import { canvasToImageData } from "../../lib/image/loadImage";
 import { Button } from "../ui/Button";
 import { Tooltip } from "../ui/Tooltip";
 import { cn } from "../../utils/cn";
-import type { CanvasTextItem, DrawTool } from "../../types/studio";
+import type { DrawTool } from "../../types/studio";
 
 const CANVAS_W = 600;
 const CANVAS_H = 400;
 
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
 export function DrawCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const lineStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -30,25 +24,10 @@ export function DrawCanvas() {
     pushDrawHistory,
     undoDraw,
     redoDraw,
-    drawTexts,
-    setDrawTexts,
-    drawHistory,
-    drawHistoryIndex,
   } = useStudioStore();
 
-  const canUndo = drawHistoryIndex > 0;
-  const canRedo = drawHistoryIndex >= 0 && drawHistoryIndex < drawHistory.length - 1;
-
-  const [editing, setEditing] = useState<{
-    x: number;
-    y: number;
-    text: string;
-  } | null>(null);
-  const [dragging, setDragging] = useState<{
-    id: string;
-    dx: number;
-    dy: number;
-  } | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // Canvas'ı başlat
   useEffect(() => {
@@ -58,32 +37,8 @@ export function DrawCanvas() {
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     // İlk history push
-    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H), []);
+    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H));
   }, []);
-
-  const renderComposite = useCallback((raster: ImageData, texts: CanvasTextItem[]) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.putImageData(raster, 0, 0);
-    for (const t of texts) {
-      ctx.save();
-      ctx.globalAlpha = t.opacity;
-      ctx.fillStyle = t.color;
-      ctx.font = `${t.fontSize}px ${t.fontFamily}`;
-      ctx.textBaseline = "top";
-      ctx.fillText(t.text, t.x, t.y);
-      ctx.restore();
-    }
-  }, []);
-
-  // History değişince composite'ı tekrar çiz
-  useEffect(() => {
-    if (drawHistoryIndex < 0) return;
-    const entry = drawHistory[drawHistoryIndex];
-    if (!entry) return;
-    renderComposite(entry.raster, entry.texts);
-  }, [drawHistory, drawHistoryIndex, renderComposite]);
 
   const getPos = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -109,69 +64,12 @@ export function DrawCanvas() {
     []
   );
 
-  const canvasToCss = useCallback((p: { x: number; y: number }) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      left: (p.x / CANVAS_W) * rect.width,
-      top: (p.y / CANVAS_H) * rect.height,
-    };
-  }, []);
-
-  const measureTextBox = useCallback((ctx: CanvasRenderingContext2D, t: CanvasTextItem) => {
-    ctx.save();
-    ctx.font = `${t.fontSize}px ${t.fontFamily}`;
-    const metrics = ctx.measureText(t.text || " ");
-    ctx.restore();
-    const w = metrics.width;
-    const h = t.fontSize * 1.15;
-    return { x: t.x, y: t.y, w, h };
-  }, []);
-
-  const hitTestText = useCallback(
-    (pos: { x: number; y: number }) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return null;
-      const ctx = canvas.getContext("2d")!;
-      // Üstteki text'i seçmek için ters sırayla gez
-      for (let i = drawTexts.length - 1; i >= 0; i--) {
-        const t = drawTexts[i];
-        const box = measureTextBox(ctx, t);
-        if (pos.x >= box.x && pos.x <= box.x + box.w && pos.y >= box.y && pos.y <= box.y + box.h) {
-          return { id: t.id, dx: pos.x - t.x, dy: pos.y - t.y };
-        }
-      }
-      return null;
-    },
-    [drawTexts, measureTextBox]
-  );
-
-  const applyTextChange = useCallback(
-    (nextTexts: CanvasTextItem[]) => {
-      setDrawTexts(nextTexts);
-      const canvas = canvasRef.current!;
-      const ctx = canvas.getContext("2d")!;
-      const raster = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
-      renderComposite(raster, nextTexts);
-    },
-    [renderComposite, setDrawTexts]
-  );
-
   const startDraw = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d")!;
       const pos = getPos(e);
-
-      if (drawSettings.tool === "text") {
-        const hit = hitTestText(pos);
-        if (hit) {
-          setDragging(hit);
-          return;
-        }
-        setEditing({ x: Math.round(pos.x), y: Math.round(pos.y), text: "" });
-        return;
-      }
 
       isDrawingRef.current = true;
       lastPosRef.current = pos;
@@ -179,25 +77,19 @@ export function DrawCanvas() {
       snapshotRef.current = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
 
       if (drawSettings.tool === "fill") {
-        floodFill(ctx, Math.round(pos.x), Math.round(pos.y), drawSettings.color);
+        smartFloodFill(ctx, Math.round(pos.x), Math.round(pos.y), drawSettings.color, {
+          tolerance: 42,
+          includeAlpha: true,
+        });
         pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H));
         isDrawingRef.current = false;
       }
     },
-    [drawSettings, getPos, hitTestText, pushDrawHistory]
+    [drawSettings, getPos, pushDrawHistory]
   );
 
   const draw = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (dragging) {
-        const pos = getPos(e);
-        const next = drawTexts.map((t) =>
-          t.id === dragging.id ? { ...t, x: Math.round(pos.x - dragging.dx), y: Math.round(pos.y - dragging.dy) } : t
-        );
-        applyTextChange(next);
-        return;
-      }
-
       if (!isDrawingRef.current) return;
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d")!;
@@ -250,45 +142,49 @@ export function DrawCanvas() {
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     },
-    [applyTextChange, drawSettings, dragging, drawTexts, getPos]
+    [drawSettings, getPos]
   );
 
   const endDraw = useCallback(() => {
-    if (dragging) {
-      setDragging(null);
-      const canvas = canvasRef.current!;
-      const ctx = canvas.getContext("2d")!;
-      pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H), drawTexts);
-      return;
-    }
-
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
     lastPosRef.current = null;
 
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
-    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H), drawTexts);
-  }, [dragging, drawTexts, pushDrawHistory]);
+    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H));
+    setCanUndo(true);
+    setCanRedo(false);
+  }, [pushDrawHistory]);
 
   const handleUndo = useCallback(() => {
-    const entry = undoDraw();
-    if (entry) renderComposite(entry.raster, entry.texts);
-  }, [renderComposite, undoDraw]);
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const data = undoDraw();
+    if (data) {
+      ctx.putImageData(data, 0, 0);
+      setCanUndo(true);
+      setCanRedo(true);
+    }
+  }, [undoDraw]);
 
   const handleRedo = useCallback(() => {
-    const entry = redoDraw();
-    if (entry) renderComposite(entry.raster, entry.texts);
-  }, [renderComposite, redoDraw]);
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const data = redoDraw();
+    if (data) {
+      ctx.putImageData(data, 0, 0);
+      setCanRedo(true);
+    }
+  }, [redoDraw]);
 
   const handleClear = useCallback(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    setDrawTexts([]);
-    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H), []);
-  }, [pushDrawHistory, setDrawTexts]);
+    pushDrawHistory(ctx.getImageData(0, 0, CANVAS_W, CANVAS_H));
+  }, [pushDrawHistory]);
 
   const convertToAscii = useCallback(() => {
     const canvas = canvasRef.current!;
@@ -310,8 +206,7 @@ export function DrawCanvas() {
     { id: "line", icon: <Minus size={14} />, label: "Çizgi" },
     { id: "rect", icon: <Square size={14} />, label: "Dikdörtgen" },
     { id: "circle", icon: <Circle size={14} />, label: "Elips" },
-    { id: "fill", icon: <Pipette size={14} />, label: "Dolgu" },
-    { id: "text", icon: <Type size={14} />, label: "Yazı" },
+    { id: "fill", icon: <PaintBucket size={14} />, label: "Akıllı Dolgu" },
   ];
 
   const BRUSH_SIZES = [2, 4, 8, 16, 24, 32];
@@ -320,32 +215,6 @@ export function DrawCanvas() {
     "#00ff88", "#00cfff", "#a855f7", "#ff69b4",
     "#888888", "#000000",
   ];
-
-  const overlayPos = useMemo(() => (editing ? canvasToCss(editing) : null), [canvasToCss, editing]);
-
-  const commitText = useCallback(() => {
-    if (!editing) return;
-    const text = editing.text.trim();
-    setEditing(null);
-    if (!text) return;
-    const item: CanvasTextItem = {
-      id: newId(),
-      x: editing.x,
-      y: editing.y,
-      text,
-      color: drawSettings.color,
-      fontSize: Math.max(12, Math.min(64, Math.round(drawSettings.size * 2))),
-      fontFamily: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      opacity: drawSettings.opacity,
-    };
-    const next = [...drawTexts, item];
-    setDrawTexts(next);
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
-    const raster = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
-    renderComposite(raster, next);
-    pushDrawHistory(raster, next);
-  }, [drawSettings.color, drawSettings.opacity, drawSettings.size, drawTexts, editing, pushDrawHistory, renderComposite, setDrawTexts]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -356,6 +225,7 @@ export function DrawCanvas() {
           {TOOLS.map((t) => (
             <Tooltip key={t.id} content={t.label}>
               <button
+                type="button"
                 onClick={() => updateDrawSettings({ tool: t.id })}
                 className={cn(
                   "h-7 w-7 rounded-md flex items-center justify-center transition-all",
@@ -375,6 +245,7 @@ export function DrawCanvas() {
           {COLORS.map((c) => (
             <button
               key={c}
+              type="button"
               onClick={() => updateDrawSettings({ color: c })}
               className={cn(
                 "h-5 w-5 rounded-sm border-2 transition-transform hover:scale-110",
@@ -400,6 +271,7 @@ export function DrawCanvas() {
           {BRUSH_SIZES.map((s) => (
             <button
               key={s}
+              type="button"
               onClick={() => updateDrawSettings({ size: s })}
               className={cn(
                 "h-7 w-7 rounded-md flex items-center justify-center transition-all",
@@ -421,6 +293,7 @@ export function DrawCanvas() {
         <div className="flex items-center gap-1 ml-auto">
           <Tooltip content="Geri Al (Ctrl+Z)">
             <button
+              type="button"
               onClick={handleUndo}
               disabled={!canUndo}
               className="h-7 w-7 rounded-md flex items-center justify-center text-text-muted hover:bg-surface hover:text-text disabled:opacity-30 transition-all"
@@ -430,6 +303,7 @@ export function DrawCanvas() {
           </Tooltip>
           <Tooltip content="İleri Al (Ctrl+Y)">
             <button
+              type="button"
               onClick={handleRedo}
               disabled={!canRedo}
               className="h-7 w-7 rounded-md flex items-center justify-center text-text-muted hover:bg-surface hover:text-text disabled:opacity-30 transition-all"
@@ -439,6 +313,7 @@ export function DrawCanvas() {
           </Tooltip>
           <Tooltip content="Tuvali Temizle">
             <button
+              type="button"
               onClick={handleClear}
               className="h-7 w-7 rounded-md flex items-center justify-center text-text-muted hover:bg-red-500/10 hover:text-red-400 transition-all"
             >
@@ -449,51 +324,17 @@ export function DrawCanvas() {
       </div>
 
       {/* Canvas */}
-      <div
-        ref={wrapRef}
-        className="relative border border-border rounded-xl overflow-hidden bg-black"
-        style={{ aspectRatio: "3/2" }}
-      >
+      <div className="relative border border-border rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "3/2" }}>
         <canvas
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          className={cn(
-            "w-full h-full",
-            drawSettings.tool === "text" ? "cursor-text" : "cursor-crosshair"
-          )}
+          className="w-full h-full cursor-crosshair"
           onMouseDown={startDraw}
           onMouseMove={draw}
           onMouseUp={endDraw}
           onMouseLeave={endDraw}
         />
-
-        {editing && overlayPos && (
-          <input
-            autoFocus
-            value={editing.text}
-            onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitText();
-              if (e.key === "Escape") setEditing(null);
-            }}
-            onBlur={() => commitText()}
-            className="absolute z-10 px-2 py-1 rounded-md border outline-none"
-            style={{
-              left: overlayPos.left,
-              top: overlayPos.top,
-              minWidth: 180,
-              zIndex: 50,
-              backgroundColor: "rgba(17, 17, 17, 0.96)",
-              color: "#ffffff",
-              borderColor: "rgba(255,255,255,0.22)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-              fontFamily: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-              fontSize: Math.max(12, Math.min(64, Math.round(drawSettings.size * 2))),
-            }}
-            placeholder="Yaz…"
-          />
-        )}
       </div>
 
       {/* ASCII'ye Dönüştür */}
@@ -504,46 +345,104 @@ export function DrawCanvas() {
   );
 }
 
-// ─── Flood Fill ───────────────────────────────────────────────────────────────
+// ─── Smart Flood Fill ─────────────────────────────────────────────────────────
 
-function floodFill(ctx: CanvasRenderingContext2D, x: number, y: number, fillColor: string) {
+type FillOptions = {
+  tolerance: number; // 0..255 per-channel threshold
+  includeAlpha: boolean;
+};
+
+function smartFloodFill(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  fillColor: string,
+  opts: FillOptions
+) {
   const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
   const data = imageData.data;
   const width = imageData.width;
   const height = imageData.height;
 
+  if (x < 0 || x >= width || y < 0 || y >= height) return;
+
   const idx = (y * width + x) * 4;
   const targetR = data[idx];
   const targetG = data[idx + 1];
   const targetB = data[idx + 2];
+  const targetA = data[idx + 3];
 
   // Hedef rengi hex'ten RGB'ye çevir
   const fill = hexToRgb(fillColor);
   if (!fill) return;
 
-  if (targetR === fill.r && targetG === fill.g && targetB === fill.b) return;
+  if (targetR === fill.r && targetG === fill.g && targetB === fill.b && targetA === 255) return;
 
+  const tol = Math.max(0, Math.min(255, Math.round(opts.tolerance)));
+  const match = (i: number) => {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (Math.abs(r - targetR) > tol) return false;
+    if (Math.abs(g - targetG) > tol) return false;
+    if (Math.abs(b - targetB) > tol) return false;
+    if (opts.includeAlpha && Math.abs(a - targetA) > tol) return false;
+    return true;
+  };
+
+  // scanline flood fill
   const stack: [number, number][] = [[x, y]];
-  const visited = new Set<number>();
-
-  const matchTarget = (i: number) =>
-    data[i] === targetR && data[i + 1] === targetG && data[i + 2] === targetB;
+  const visited = new Uint8Array(width * height);
 
   while (stack.length > 0) {
     const [cx, cy] = stack.pop()!;
     if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
 
-    const ci = (cy * width + cx) * 4;
-    if (visited.has(ci)) continue;
-    if (!matchTarget(ci)) continue;
+    const baseOffset = cy * width + cx;
+    if (visited[baseOffset] === 1) continue;
 
-    visited.add(ci);
-    data[ci] = fill.r;
-    data[ci + 1] = fill.g;
-    data[ci + 2] = fill.b;
-    data[ci + 3] = 255;
+    // if seed doesn't match, skip
+    const seedI = baseOffset * 4;
+    if (!match(seedI)) {
+      visited[baseOffset] = 1;
+      continue;
+    }
 
-    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    let left = cx;
+    let right = cx;
+
+    while (left - 1 >= 0) {
+      const o = cy * width + (left - 1);
+      if (visited[o] === 1) break;
+      const i = o * 4;
+      if (!match(i)) break;
+      left--;
+    }
+
+    while (right + 1 < width) {
+      const o = cy * width + (right + 1);
+      if (visited[o] === 1) break;
+      const i = o * 4;
+      if (!match(i)) break;
+      right++;
+    }
+
+    for (let px = left; px <= right; px++) {
+      const o = cy * width + px;
+      if (visited[o] === 1) continue;
+      const i = o * 4;
+      if (!match(i)) continue;
+      visited[o] = 1;
+      data[i] = fill.r;
+      data[i + 1] = fill.g;
+      data[i + 2] = fill.b;
+      data[i + 3] = 255;
+
+      if (cy - 1 >= 0) stack.push([px, cy - 1]);
+      if (cy + 1 < height) stack.push([px, cy + 1]);
+    }
+    visited[baseOffset] = 1;
   }
 
   ctx.putImageData(imageData, 0, 0);

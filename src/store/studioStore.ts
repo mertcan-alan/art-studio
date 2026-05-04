@@ -6,7 +6,6 @@ import type {
   ActiveTool,
   Preset,
   DrawSettings,
-  CanvasTextItem,
 } from "../types/studio";
 
 // ─── Varsayılan Ayarlar ───────────────────────────────────────────────────────
@@ -35,8 +34,6 @@ const DEFAULT_DRAW_SETTINGS: DrawSettings = {
   opacity: 1,
 };
 
-const DEFAULT_DRAW_TEXTS: CanvasTextItem[] = [];
-
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 export const useStudioStore = create<StudioState>((set, get) => ({
@@ -49,7 +46,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   result: null,
   isProcessing: false,
   drawSettings: DEFAULT_DRAW_SETTINGS,
-  drawTexts: DEFAULT_DRAW_TEXTS,
   drawHistory: [],
   drawHistoryIndex: -1,
 
@@ -102,19 +98,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       drawSettings: { ...state.drawSettings, ...partial },
     })),
 
-  setDrawTexts: (texts) => set({ drawTexts: texts }),
-
-  pushDrawHistory: (raster: ImageData, texts: CanvasTextItem[]) => {
+  pushDrawHistory: (data: ImageData) => {
     const { drawHistory, drawHistoryIndex } = get();
     // İlerideki history'yi sil
     const newHistory = drawHistory.slice(0, drawHistoryIndex + 1);
-    newHistory.push({ raster, texts });
+    newHistory.push(data);
     // Max 30 adım
     if (newHistory.length > 30) newHistory.shift();
     set({
       drawHistory: newHistory,
       drawHistoryIndex: newHistory.length - 1,
-      drawTexts: texts,
     });
   },
 
@@ -122,17 +115,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const { drawHistory, drawHistoryIndex } = get();
     if (drawHistoryIndex <= 0) return null;
     const newIndex = drawHistoryIndex - 1;
-    const entry = drawHistory[newIndex];
-    set({ drawHistoryIndex: newIndex, drawTexts: entry.texts });
-    return entry;
+    set({ drawHistoryIndex: newIndex });
+    return drawHistory[newIndex];
   },
 
   redoDraw: () => {
     const { drawHistory, drawHistoryIndex } = get();
     if (drawHistoryIndex >= drawHistory.length - 1) return null;
     const newIndex = drawHistoryIndex + 1;
-    const entry = drawHistory[newIndex];
-    set({ drawHistoryIndex: newIndex, drawTexts: entry.texts });
-    return entry;
+    set({ drawHistoryIndex: newIndex });
+    return drawHistory[newIndex];
   },
 }));

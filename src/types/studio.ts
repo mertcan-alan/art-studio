@@ -4,7 +4,7 @@ export type AsciiMode = "mono" | "color";
 
 export type ExportFormat = "txt" | "png" | "svg" | "html";
 
-export type ActiveTool = "upload" | "draw" | "text" | "presets";
+export type ActiveTool = "upload" | "draw" | "presets";
 
 export type ActiveView = "home" | "studio";
 
@@ -64,29 +64,13 @@ export interface AsciiResult {
 
 // ─── Çizim Aracı ─────────────────────────────────────────────────────────────
 
-export type DrawTool = "brush" | "eraser" | "line" | "rect" | "circle" | "fill" | "text";
+export type DrawTool = "brush" | "eraser" | "line" | "rect" | "circle" | "fill";
 
 export interface DrawSettings {
   tool: DrawTool;
   color: string;
   size: number;
   opacity: number;
-}
-
-export interface CanvasTextItem {
-  id: string;
-  x: number;
-  y: number;
-  text: string;
-  color: string;
-  fontSize: number;
-  fontFamily: string;
-  opacity: number;
-}
-
-export interface DrawHistoryEntry {
-  raster: ImageData;
-  texts: CanvasTextItem[];
 }
 
 // ─── Studio Store State ───────────────────────────────────────────────────────
@@ -109,8 +93,7 @@ export interface StudioState {
 
   // Çizim
   drawSettings: DrawSettings;
-  drawTexts: CanvasTextItem[];
-  drawHistory: DrawHistoryEntry[];
+  drawHistory: ImageData[];
   drawHistoryIndex: number;
 
   // Actions
@@ -123,8 +106,7 @@ export interface StudioState {
   setIsProcessing: (v: boolean) => void;
   applyPreset: (preset: Preset) => void;
   updateDrawSettings: (partial: Partial<DrawSettings>) => void;
-  setDrawTexts: (texts: CanvasTextItem[]) => void;
-  pushDrawHistory: (raster: ImageData, texts: CanvasTextItem[]) => void;
-  undoDraw: () => DrawHistoryEntry | null;
-  redoDraw: () => DrawHistoryEntry | null;
+  pushDrawHistory: (data: ImageData) => void;
+  undoDraw: () => ImageData | null;
+  redoDraw: () => ImageData | null;
 }

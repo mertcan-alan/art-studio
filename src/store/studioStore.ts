@@ -7,6 +7,7 @@ import type {
   Preset,
   DrawSettings,
   SourceKind,
+  EffectSettings,
 } from "../types/studio";
 
 // ─── Varsayılan Ayarlar ───────────────────────────────────────────────────────
@@ -35,6 +36,11 @@ const DEFAULT_DRAW_SETTINGS: DrawSettings = {
   opacity: 1,
 };
 
+const DEFAULT_EFFECT_SETTINGS: EffectSettings = {
+  type: "none",
+  intensity: 0.5,
+};
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 export const useStudioStore = create<StudioState>((set, get) => ({
@@ -52,6 +58,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   isProcessing: false,
   processingProgress: 0,
   processingStatus: "",
+  effectSettings: DEFAULT_EFFECT_SETTINGS,
   drawSettings: DEFAULT_DRAW_SETTINGS,
   drawHistory: [],
   drawHistoryIndex: -1,
@@ -115,6 +122,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       settings: { ...state.settings, ...partial },
     })),
 
+  updateEffectSettings: (partial: Partial<EffectSettings>) =>
+    set((state) => ({
+      effectSettings: { ...state.effectSettings, ...partial },
+    })),
+
   // ── Sonuç ──────────────────────────────────────────────
   setResult: (result) => set({ result }),
 
@@ -127,14 +139,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   // ── Preset ─────────────────────────────────────────────
   applyPreset: (preset: Preset) =>
-    set((state) => ({
-      settings: {
-        ...state.settings,
-        ...preset.settings,
-        background: preset.bg,
-        foreground: preset.fg,
-      },
-    })),
+    set((state) => {
+      // Kullanıcının mevcut invert ayarını koru — preset değişince sıfırlanmasın
+      const { invert: _presetInvert, ...presetSettingsWithoutInvert } = preset.settings as Partial<AsciiSettings>;
+      return {
+        settings: {
+          ...state.settings,
+          ...presetSettingsWithoutInvert,
+          background: preset.bg,
+          foreground: preset.fg,
+        },
+      };
+    }),
 
   // ── Çizim ──────────────────────────────────────────────
   updateDrawSettings: (partial: Partial<DrawSettings>) =>

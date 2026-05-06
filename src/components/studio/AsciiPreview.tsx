@@ -140,13 +140,15 @@ export function AsciiPreview() {
         }
 
         const framesText: string[] = [];
+        const framesCells: import("../../types/studio").AsciiCell[][][] = [];
         let cols = 0;
         let rows = 0;
         for (let i = 0; i < keptFrames.length; i++) {
           if (signal.aborted) throw new DOMException("Aborted", "AbortError");
           setProcessingProgress(0.4 + (i / keptFrames.length) * 0.6, `ASCII frame ${i + 1}/${keptFrames.length}`);
-          const out = imageDataToAsciiText(keptFrames[i], debouncedSettings);
+          const out = imageDataToAscii(keptFrames[i], debouncedSettings);
           framesText.push(out.text);
+          framesCells.push(out.cells);
           cols = out.cols;
           rows = out.rows;
         }
@@ -159,6 +161,7 @@ export function AsciiPreview() {
           fps: keptFps,
           frameCount: framesText.length,
           framesText,
+          framesCells,
         });
         setFrameIndex(0);
         setPlaying(true);
@@ -201,6 +204,12 @@ export function AsciiPreview() {
   const activeAsciiText = useMemo(() => {
     if (!animationResult) return null;
     return animationResult.framesText[Math.max(0, Math.min(frameIndex, animationResult.frameCount - 1))] ?? "";
+  }, [animationResult, frameIndex]);
+
+  const activeFrameCells = useMemo(() => {
+    if (!animationResult?.framesCells) return null;
+    const idx = Math.max(0, Math.min(frameIndex, animationResult.frameCount - 1));
+    return animationResult.framesCells[idx] ?? null;
   }, [animationResult, frameIndex]);
 
   const handleZoomIn = useCallback(() => setZoom((z) => Math.min(z + 0.25, 4)), []);
@@ -373,7 +382,17 @@ export function AsciiPreview() {
                       }}
                       aria-label="ASCII animasyon çıktısı"
                     >
-                      {activeAsciiText ?? ""}
+                      {settings.mode === "color" && activeFrameCells
+                        ? activeFrameCells.map((row, y) => (
+                            <span key={y} style={{ display: "block" }}>
+                              {row.map((cell, x) => (
+                                <span key={x} style={{ color: cell.color }}>
+                                  {cell.char}
+                                </span>
+                              ))}
+                            </span>
+                          ))
+                        : (activeAsciiText ?? "")}
                     </pre>
                   </div>
                 ) : result ? (

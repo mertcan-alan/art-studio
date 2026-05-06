@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Copy, Check, FileText, FileImage, Code, Globe } from "lucide-react";
+import { Download, Copy, Check, FileText, FileImage, Code, Globe, Film, Image } from "lucide-react";
 import { useStudioStore } from "../../store/studioStore";
 import {
   exportAsTxt,
@@ -8,14 +8,18 @@ import {
   exportAsSvg,
   exportAsAnimatedHtml,
   exportTextAsTxt,
+  exportAnimationAsPng,
+  exportAnimationAsGif,
+  exportAnimationAsVideo,
   copyToClipboard,
 } from "../../lib/ascii/export";
 import { cn } from "../../utils/cn";
 
 export function ExportPanel() {
-  const { result, animationResult, settings } = useStudioStore();
+  const { result, animationResult, settings, effectSettings } = useStudioStore();
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
 
   if (!result && !animationResult) {
     return (
@@ -42,15 +46,58 @@ export function ExportPanel() {
 
   const handle = async (id: string, fn: () => void | Promise<void>) => {
     setExporting(id);
+    setExportProgress(0);
     try {
       await fn();
+    } catch (err) {
+      console.error("Export hatası:", err);
     } finally {
-      setTimeout(() => setExporting(null), 600);
+      setTimeout(() => {
+        setExporting(null);
+        setExportProgress(0);
+      }, 600);
     }
   };
 
   const EXPORTS = animationResult
     ? [
+        {
+          id: "png_frame",
+          label: "PNG",
+          description: "İlk frame (görsel)",
+          icon: <Image size={14} />,
+          fn: () => exportAnimationAsPng(animationResult, settings, filename, 2, effectSettings),
+        },
+        {
+          id: "gif",
+          label: "GIF",
+          description: "Animasyonlu GIF",
+          icon: <FileImage size={14} />,
+          fn: () =>
+            exportAnimationAsGif(
+              animationResult,
+              settings,
+              filename,
+              1,
+              effectSettings,
+              (p) => setExportProgress(p)
+            ),
+        },
+        {
+          id: "video",
+          label: "Video",
+          description: "WebM video dosyası",
+          icon: <Film size={14} />,
+          fn: () =>
+            exportAnimationAsVideo(
+              animationResult,
+              settings,
+              filename,
+              1,
+              effectSettings,
+              (p) => setExportProgress(p)
+            ),
+        },
         {
           id: "txt",
           label: "TXT",
@@ -79,7 +126,7 @@ export function ExportPanel() {
           label: "PNG",
           description: "Yüksek kalite görsel",
           icon: <FileImage size={14} />,
-          fn: () => exportAsPng(result!, settings, filename, 2),
+          fn: () => exportAsPng(result!, settings, filename, 2, effectSettings),
         },
         {
           id: "svg",
@@ -119,6 +166,15 @@ export function ExportPanel() {
           </div>
         ))}
       </div>
+
+      {/* Efekt bilgisi */}
+      {effectSettings.type !== "none" && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-accent/5 border border-accent/20 rounded-lg">
+          <span className="text-[10px] text-accent font-medium">
+            ✨ Efekt aktif: dışa aktarmalara uygulanacak
+          </span>
+        </div>
+      )}
 
       {/* Kopyala */}
       <button
@@ -161,6 +217,14 @@ export function ExportPanel() {
                 <span className="text-xs font-bold text-text">{exp.label}</span>
               </div>
               <p className="text-[10px] text-text-dim">{exp.description}</p>
+              {exporting === exp.id && exportProgress > 0 && (
+                <div className="w-full bg-border rounded-full h-1 mt-1">
+                  <div
+                    className="bg-accent h-1 rounded-full transition-all duration-200"
+                    style={{ width: `${Math.round(exportProgress * 100)}%` }}
+                  />
+                </div>
+              )}
             </button>
           ))}
         </div>

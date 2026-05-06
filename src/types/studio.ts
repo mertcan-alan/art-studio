@@ -71,6 +71,27 @@ export interface AsciiAnimationResult {
   fps: number;
   frameCount: number;
   framesText: string[];
+  framesCells?: AsciiCell[][][]; // her frame için renkli hücre matrisi
+}
+
+// ─── Efekt Tipleri ───────────────────────────────────────────────────────────
+
+export type EffectType =
+  | "none"
+  | "fisheye"
+  | "barrel"
+  | "vignette"
+  | "scanlines"
+  | "glitch"
+  | "pixelate"
+  | "blur"
+  | "edge_glow"
+  | "chromatic"
+  | "crt";
+
+export interface EffectSettings {
+  type: EffectType;
+  intensity: number; // 0..1
 }
 
 // ─── Çizim Aracı ─────────────────────────────────────────────────────────────
@@ -101,6 +122,9 @@ export interface StudioState {
   // Ayarlar
   settings: AsciiSettings;
 
+  // Efektler
+  effectSettings: EffectSettings;
+
   // Sonuç
   result: AsciiResult | null;
   animationResult: AsciiAnimationResult | null;
@@ -120,6 +144,7 @@ export interface StudioState {
   setSourceMedia: (kind: SourceKind, fileOrUrl: File | string, name: string, durationSec?: number | null) => void;
   clearSourceImage: () => void;
   updateSettings: (partial: Partial<AsciiSettings>) => void;
+  updateEffectSettings: (partial: Partial<EffectSettings>) => void;
   setResult: (result: AsciiResult | null) => void;
   setAnimationResult: (result: AsciiAnimationResult | null) => void;
   setIsProcessing: (v: boolean) => void;

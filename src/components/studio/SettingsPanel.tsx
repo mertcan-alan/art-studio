@@ -1,12 +1,19 @@
 import { useStudioStore } from "../../store/studioStore";
 import { useUiStore } from "../../store/uiStore";
 import { CHARSETS } from "../../lib/charsets";
+import { EFFECT_DESCRIPTIONS } from "../../lib/effects";
 import { Slider } from "../ui/Slider";
 import { Toggle } from "../ui/Toggle";
 import { cn } from "../../utils/cn";
+import type { EffectType } from "../../types/studio";
+
+const EFFECT_TYPES: EffectType[] = [
+  "none", "fisheye", "barrel", "vignette", "scanlines",
+  "glitch", "pixelate", "blur", "edge_glow", "chromatic", "crt",
+];
 
 export function SettingsPanel() {
-  const { settings, updateSettings } = useStudioStore();
+  const { settings, updateSettings, effectSettings, updateEffectSettings } = useStudioStore();
   const { cursorFxEnabled, setCursorFxEnabled } = useUiStore();
 
   return (
@@ -120,6 +127,60 @@ export function SettingsPanel() {
             format={(v) => v.toFixed(2)}
             unit="x"
           />
+        )}
+      </Section>
+
+      {/* ── Efektler ───────────────────────────────────────── */}
+      <Section title="Efektler">
+        <p className="text-[10px] text-text-dim leading-snug -mt-1 mb-1">
+          Dışa aktarma sırasında uygulanacak görsel efekt. PNG, GIF ve video çıktılarına işlenir.
+        </p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {EFFECT_TYPES.map((type) => {
+            const info = EFFECT_DESCRIPTIONS[type];
+            const isActive = effectSettings.type === type;
+            return (
+              <button
+                key={type}
+                onClick={() => updateEffectSettings({ type })}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-left transition-all",
+                  isActive
+                    ? "bg-accent/10 border-accent shadow-sm shadow-accent/10"
+                    : "bg-surface border-border hover:border-border-hover"
+                )}
+              >
+                <span className="text-sm flex-shrink-0">{info.icon}</span>
+                <div className="min-w-0">
+                  <span
+                    className={cn(
+                      "text-[11px] font-medium block truncate",
+                      isActive ? "text-accent" : "text-text"
+                    )}
+                  >
+                    {info.name}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {effectSettings.type !== "none" && (
+          <div className="mt-2 space-y-2">
+            <p className="text-[10px] text-text-dim">
+              {EFFECT_DESCRIPTIONS[effectSettings.type].description}
+            </p>
+            <Slider
+              label="Yoğunluk"
+              value={effectSettings.intensity}
+              min={0.05}
+              max={1.0}
+              step={0.05}
+              onChange={(v) => updateEffectSettings({ intensity: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </div>
         )}
       </Section>
 

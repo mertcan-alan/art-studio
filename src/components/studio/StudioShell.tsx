@@ -137,20 +137,27 @@ export function StudioShell() {
 }
 
 function StatusBar() {
-  const { result, sourceImage, sourceImageName } = useStudioStore();
+  const { result, animationResult, sourceImage, sourceImageName, sourceKind, sourceDurationSec } = useStudioStore();
 
   return (
     <footer className="h-6 flex items-center px-3 gap-4 border-t border-border bg-panel flex-shrink-0">
       <span className="text-[10px] text-text-dim font-mono">
         {sourceImage
           ? `📁 ${sourceImageName} — ${sourceImage.naturalWidth}×${sourceImage.naturalHeight}px`
-          : "Görsel yüklenmedi"}
+          : sourceDurationSec != null
+            ? `📁 ${sourceImageName} — ${sourceKind.toUpperCase()} ${sourceDurationSec.toFixed(2)}s`
+            : sourceImageName
+              ? `📁 ${sourceImageName} — ${sourceKind.toUpperCase()}`
+              : "Görsel yüklenmedi"}
       </span>
-      {result && (
+      {(result || animationResult) && (
         <>
           <span className="text-[10px] text-text-dim">|</span>
           <span className="text-[10px] text-text-dim font-mono">
-            ASCII: {result.cols}×{result.rows} — {(result.rows * result.cols).toLocaleString()} karakter
+            ASCII: {(result ?? animationResult)!.cols}×{(result ?? animationResult)!.rows}
+            {animationResult
+              ? ` — ${animationResult.frameCount} frame @ ${animationResult.fps}fps`
+              : ` — ${(result!.rows * result!.cols).toLocaleString()} karakter`}
           </span>
         </>
       )}

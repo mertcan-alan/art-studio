@@ -7,7 +7,16 @@ import { Button } from "../ui/Button";
 import { cn } from "../../utils/cn";
 
 export function UploadPanel() {
-  const { sourceImage, sourceImageName, setSourceImage, clearSourceImage } =
+  const {
+    sourceImage,
+    sourceImageName,
+    sourceKind,
+    sourceObjectUrl,
+    sourceDurationSec,
+    setSourceImage,
+    setSourceMedia,
+    clearSourceImage,
+  } =
     useStudioStore();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,34 +26,83 @@ export function UploadPanel() {
       setError(null);
       setLoading(true);
       try {
-        const img = await loadImageFromFile(file);
-        setSourceImage(img, file.name);
+        if (file.type.startsWith("image/") && file.type !== "image/gif") {
+          const img = await loadImageFromFile(file);
+          setSourceImage(img, file.name);
+          return;
+        }
+
+        if (file.type === "image/gif") {
+          // GIF: sadece objectURL ile sakla, decode/convert preview tarafında yapılacak
+          setSourceMedia("gif", file, file.name, null);
+          return;
+        }
+
+        if (file.type.startsWith("video/")) {
+          const url = URL.createObjectURL(file);
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.muted = true;
+          video.playsInline = true;
+          video.src = url;
+
+          const durationSec = await new Promise<number>((resolve, reject) => {
+            const onLoaded = () => resolve(video.duration || 0);
+            const onError = () => reject(new Error("Video metadata okunamadı."));
+            video.addEventListener("loadedmetadata", onLoaded, { once: true });
+            video.addEventListener("error", onError, { once: true });
+          });
+
+          URL.revokeObjectURL(url);
+          setSourceMedia("video", file, file.name, Number.isFinite(durationSec) ? durationSec : null);
+          return;
+        }
+
+        throw new Error("Desteklenmeyen dosya türü. Görsel, GIF veya video yükleyin.");
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Bir hata oluştu");
       } finally {
         setLoading(false);
       }
     },
-    [setSourceImage]
+    [setSourceImage, setSourceMedia]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "image/*": [] },
+    accept: { "image/*": [], "video/*": [] },
     multiple: false,
     onDrop: (files) => files[0] && handleFile(files[0]),
   });
 
-  // Görsel varsa göster
-  if (sourceImage) {
+  const hasSource = !!sourceImage || !!sourceObjectUrl;
+
+  // Kaynak varsa göster
+  if (hasSource) {
     return (
       <div className="space-y-3">
         {/* Önizleme */}
         <div className="relative rounded-lg overflow-hidden border border-border bg-surface-raised group">
-          <img
-            src={sourceImage.src}
-            alt="Yüklenen görsel"
-            className="w-full object-contain max-h-48"
-          />
+          {sourceImage ? (
+            <img
+              src={sourceImage.src}
+              alt="Yüklenen görsel"
+              className="w-full object-contain max-h-48"
+            />
+          ) : sourceKind === "video" && sourceObjectUrl ? (
+            <video
+              src={sourceObjectUrl}
+              className="w-full object-contain max-h-48 bg-black"
+              muted
+              playsInline
+              controls
+            />
+          ) : sourceKind === "gif" && sourceObjectUrl ? (
+            <img
+              src={sourceObjectUrl}
+              alt="Yüklenen GIF"
+              className="w-full object-contain max-h-48"
+            />
+          ) : null}
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
             <Button
               variant="danger"
@@ -63,9 +121,19 @@ export function UploadPanel() {
           <span className="text-xs text-text-muted truncate flex-1">
             {sourceImageName}
           </span>
-          <span className="text-[10px] text-text-dim font-mono">
-            {sourceImage.naturalWidth} × {sourceImage.naturalHeight}
-          </span>
+          {sourceImage ? (
+            <span className="text-[10px] text-text-dim font-mono">
+              {sourceImage.naturalWidth} × {sourceImage.naturalHeight}
+            </span>
+          ) : sourceKind === "video" && sourceDurationSec != null ? (
+            <span className="text-[10px] text-text-dim font-mono">
+              {sourceDurationSec.toFixed(2)}s
+            </span>
+          ) : (
+            <span className="text-[10px] text-text-dim font-mono">
+              {sourceKind.toUpperCase()}
+            </span>
+          )}
           <button
             onClick={clearSourceImage}
             className="text-text-dim hover:text-red-400 transition-colors"
@@ -119,10 +187,10 @@ export function UploadPanel() {
         ) : (
           <>
             <p className="text-sm font-medium text-text mb-1">
-              Görsel yükle
+              Medya yükle
             </p>
             <p className="text-xs text-text-dim">
-              PNG, JPG, WebP, GIF, SVG
+              PNG, JPG, WebP, GIF, SVG, MP4, WebM, MOV
               <br />
               Sürükle bırak veya tıkla
             </p>

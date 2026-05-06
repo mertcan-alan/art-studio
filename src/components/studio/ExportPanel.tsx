@@ -6,16 +6,18 @@ import {
   exportAsPng,
   exportAsHtml,
   exportAsSvg,
+  exportAsAnimatedHtml,
+  exportTextAsTxt,
   copyToClipboard,
 } from "../../lib/ascii/export";
 import { cn } from "../../utils/cn";
 
 export function ExportPanel() {
-  const { result, settings } = useStudioStore();
+  const { result, animationResult, settings } = useStudioStore();
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  if (!result) {
+  if (!result && !animationResult) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
         <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center border border-border">
@@ -31,7 +33,7 @@ export function ExportPanel() {
   const filename = "ascii-studio-export";
 
   const handleCopy = async () => {
-    const ok = await copyToClipboard(result.text);
+    const ok = await copyToClipboard(result?.text ?? animationResult?.framesText?.[0] ?? "");
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -47,45 +49,67 @@ export function ExportPanel() {
     }
   };
 
-  const EXPORTS = [
-    {
-      id: "txt",
-      label: "TXT",
-      description: "Düz metin dosyası",
-      icon: <FileText size={14} />,
-      fn: () => exportAsTxt(result, filename),
-    },
-    {
-      id: "png",
-      label: "PNG",
-      description: "Yüksek kalite görsel",
-      icon: <FileImage size={14} />,
-      fn: () => exportAsPng(result, settings, filename, 2),
-    },
-    {
-      id: "svg",
-      label: "SVG",
-      description: "Vektör grafik",
-      icon: <Code size={14} />,
-      fn: () => exportAsSvg(result, settings, filename),
-    },
-    {
-      id: "html",
-      label: "HTML",
-      description: "Renkli web sayfası",
-      icon: <Globe size={14} />,
-      fn: () => exportAsHtml(result, settings, filename),
-    },
-  ];
+  const EXPORTS = animationResult
+    ? [
+        {
+          id: "txt",
+          label: "TXT",
+          description: "İlk frame (düz metin)",
+          icon: <FileText size={14} />,
+          fn: () => exportTextAsTxt(animationResult.framesText[0] ?? "", filename),
+        },
+        {
+          id: "html_anim",
+          label: "HTML",
+          description: "Oynatılabilir animasyon",
+          icon: <Globe size={14} />,
+          fn: () => exportAsAnimatedHtml(animationResult, settings, filename),
+        },
+      ]
+    : [
+        {
+          id: "txt",
+          label: "TXT",
+          description: "Düz metin dosyası",
+          icon: <FileText size={14} />,
+          fn: () => exportAsTxt(result!, filename),
+        },
+        {
+          id: "png",
+          label: "PNG",
+          description: "Yüksek kalite görsel",
+          icon: <FileImage size={14} />,
+          fn: () => exportAsPng(result!, settings, filename, 2),
+        },
+        {
+          id: "svg",
+          label: "SVG",
+          description: "Vektör grafik",
+          icon: <Code size={14} />,
+          fn: () => exportAsSvg(result!, settings, filename),
+        },
+        {
+          id: "html",
+          label: "HTML",
+          description: "Renkli web sayfası",
+          icon: <Globe size={14} />,
+          fn: () => exportAsHtml(result!, settings, filename),
+        },
+      ];
 
   return (
     <div className="space-y-3">
       {/* İstatistikler */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "Satır", value: result.rows },
-          { label: "Sütun", value: result.cols },
-          { label: "Karakter", value: (result.rows * result.cols).toLocaleString() },
+          { label: "Satır", value: (result ?? animationResult)!.rows },
+          { label: "Sütun", value: (result ?? animationResult)!.cols },
+          {
+            label: animationResult ? "Frame" : "Karakter",
+            value: animationResult
+              ? animationResult.frameCount
+            : (result!.rows * result!.cols).toLocaleString(),
+          },
         ].map((stat) => (
           <div key={stat.label} className="bg-surface border border-border rounded-lg px-2 py-2 text-center">
             <p className="text-sm font-bold text-accent font-mono tabular-nums">

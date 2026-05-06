@@ -1,9 +1,14 @@
-import type { AsciiResult, AsciiSettings } from "../../types/studio";
+import type { AsciiAnimationResult, AsciiResult, AsciiSettings } from "../../types/studio";
 
 // ─── TXT Export ───────────────────────────────────────────────────────────────
 
 export function exportAsTxt(result: AsciiResult, filename = "ascii-art"): void {
   const blob = new Blob([result.text], { type: "text/plain;charset=utf-8" });
+  triggerDownload(blob, `${filename}.txt`);
+}
+
+export function exportTextAsTxt(text: string, filename = "ascii-art"): void {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   triggerDownload(blob, `${filename}.txt`);
 }
 
@@ -58,6 +63,98 @@ export function exportAsHtml(
 <div class="ascii-container">
 ${lines}
 </div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  triggerDownload(blob, `${filename}.html`);
+}
+
+// ─── Animated HTML Export (Video/GIF) ─────────────────────────────────────────
+
+export function exportAsAnimatedHtml(
+  anim: AsciiAnimationResult,
+  settings: AsciiSettings,
+  filename = "ascii-animation"
+): void {
+  const { background, foreground, fontSize, lineHeight } = settings;
+  const safeFrames = anim.framesText.map((t) => escapeJsString(t));
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASCII Animation — ASCII Studio</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: ${background};
+      color: ${foreground};
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: ${fontSize}px;
+      line-height: ${lineHeight};
+      padding: 16px;
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 12px;
+      color: rgba(255,255,255,0.75);
+    }
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.9);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(255,255,255,0.09); }
+    pre {
+      white-space: pre;
+      margin: 0;
+      user-select: text;
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <button id="toggle">Pause</button>
+    <span id="meta">${anim.frameCount} frames @ ${anim.fps}fps</span>
+    <span id="idx"></span>
+  </div>
+  <pre id="ascii"></pre>
+  <script>
+    const frames = ${JSON.stringify(safeFrames)};
+    const fps = ${Math.max(1, anim.fps)};
+    let playing = true;
+    let i = 0;
+    const el = document.getElementById("ascii");
+    const idx = document.getElementById("idx");
+    const btn = document.getElementById("toggle");
+
+    function render() {
+      el.textContent = frames[i] || "";
+      idx.textContent = "Frame " + (i + 1) + "/" + frames.length;
+    }
+    render();
+
+    btn.addEventListener("click", () => {
+      playing = !playing;
+      btn.textContent = playing ? "Pause" : "Play";
+    });
+
+    setInterval(() => {
+      if (!playing) return;
+      i = (i + 1) % frames.length;
+      render();
+    }, 1000 / fps);
+  </script>
 </body>
 </html>`;
 
@@ -182,6 +279,12 @@ function escapeHtml(char: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/ /g, "&nbsp;");
+}
+
+function escapeJsString(s: string): string {
+  // For embedding in JSON string safely; JSON.stringify handles most,
+  // but we also neutralize closing script tags to be safe.
+  return s.replace(/<\/script>/gi, "<\\/script>");
 }
 
 function triggerDownload(blob: Blob, filename: string): void {

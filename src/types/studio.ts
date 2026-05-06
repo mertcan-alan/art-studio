@@ -8,6 +8,8 @@ export type ActiveTool = "upload" | "draw" | "presets";
 
 export type ActiveView = "home" | "studio";
 
+export type SourceKind = "image" | "video" | "gif";
+
 // ─── Karakter Setleri ────────────────────────────────────────────────────────
 
 export interface CharsetOption {
@@ -62,6 +64,15 @@ export interface AsciiResult {
   cells: AsciiCell[][];
 }
 
+export interface AsciiAnimationResult {
+  kind: "animation";
+  cols: number;
+  rows: number;
+  fps: number;
+  frameCount: number;
+  framesText: string[];
+}
+
 // ─── Çizim Aracı ─────────────────────────────────────────────────────────────
 
 export type DrawTool = "brush" | "eraser" | "line" | "rect" | "circle" | "fill";
@@ -83,13 +94,19 @@ export interface StudioState {
   // Görsel
   sourceImage: HTMLImageElement | null;
   sourceImageName: string;
+  sourceKind: SourceKind;
+  sourceObjectUrl: string | null;
+  sourceDurationSec: number | null;
 
   // Ayarlar
   settings: AsciiSettings;
 
   // Sonuç
   result: AsciiResult | null;
+  animationResult: AsciiAnimationResult | null;
   isProcessing: boolean;
+  processingProgress: number; // 0..1
+  processingStatus: string;
 
   // Çizim
   drawSettings: DrawSettings;
@@ -100,10 +117,13 @@ export interface StudioState {
   setActiveView: (view: ActiveView) => void;
   setActiveTool: (tool: ActiveTool) => void;
   setSourceImage: (img: HTMLImageElement, name: string) => void;
+  setSourceMedia: (kind: SourceKind, fileOrUrl: File | string, name: string, durationSec?: number | null) => void;
   clearSourceImage: () => void;
   updateSettings: (partial: Partial<AsciiSettings>) => void;
   setResult: (result: AsciiResult | null) => void;
+  setAnimationResult: (result: AsciiAnimationResult | null) => void;
   setIsProcessing: (v: boolean) => void;
+  setProcessingProgress: (progress: number, status?: string) => void;
   applyPreset: (preset: Preset) => void;
   updateDrawSettings: (partial: Partial<DrawSettings>) => void;
   pushDrawHistory: (data: ImageData) => void;

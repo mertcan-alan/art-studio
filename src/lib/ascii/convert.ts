@@ -172,3 +172,66 @@ export function imageDataToAscii(
     cells,
   };
 }
+
+export function imageDataToAsciiText(
+  imageData: ImageData,
+  settings: AsciiSettings
+): { text: string; rows: number; cols: number } {
+  const {
+    width: outputWidth,
+    charsetId,
+    customCharset,
+    invert,
+    contrast,
+    brightness,
+    gamma,
+  } = settings;
+
+  const charsetOption = getCharsetById(charsetId);
+  const charset =
+    charsetId === "custom" && customCharset.length > 0
+      ? customCharset
+      : charsetOption.chars;
+
+  if (charset.length === 0) {
+    return { text: "", rows: 0, cols: 0 };
+  }
+
+  const srcWidth = imageData.width;
+  const srcHeight = imageData.height;
+
+  const charAspect = 0.55;
+  const cols = Math.max(10, Math.min(outputWidth, 500));
+  const rows = Math.max(5, Math.round((cols * srcHeight) / srcWidth * charAspect));
+
+  const blockW = srcWidth / cols;
+  const blockH = srcHeight / rows;
+
+  const textRows: string[] = [];
+
+  for (let y = 0; y < rows; y++) {
+    let rowText = "";
+    for (let x = 0; x < cols; x++) {
+      const startX = Math.floor(x * blockW);
+      const startY = Math.floor(y * blockH);
+      const endX = Math.min(Math.floor((x + 1) * blockW), srcWidth);
+      const endY = Math.min(Math.floor((y + 1) * blockH), srcHeight);
+
+      const avg = getBlockAverage(imageData.data, srcWidth, startX, startY, endX, endY);
+
+      let lum = avg.lum;
+      lum = applyContrast(lum, contrast);
+      lum = applyBrightness(lum, brightness);
+      lum = applyGamma(clamp(lum), gamma);
+      lum = clamp(lum);
+
+      if (invert) lum = 255 - lum;
+
+      const charIdx = Math.floor((lum / 255) * (charset.length - 1));
+      rowText += charset[charIdx];
+    }
+    textRows.push(rowText);
+  }
+
+  return { text: textRows.join("\n"), rows, cols };
+}
